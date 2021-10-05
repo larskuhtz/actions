@@ -78,9 +78,36 @@ async function isInstalled(
   const toolPath = tc.find(tool, version);
   if (toolPath) return success(tool, version, toolPath, os);
 
-  const ghcupPath = `${process.env.HOME}/.ghcup${
+  let ghcupPath = `${process.env.HOME}/.ghcup${
     tool === 'ghc' ? `/ghc/${version}` : ''
   }/bin`;
+
+  // hack for supporting ghc release candidates
+  let ghcupVersion = '';
+  if (tool === 'ghc') {
+    const ghcupBasePath = `${process.env.HOME}/.ghcup/ghc`;
+    try {
+      // find release that matches prefix
+      const candidates = fs
+        .readdirSync(ghcupBasePath)
+        .filter(x => x.startsWith(version));
+      if (candidates.length == 1) {
+        ghcupVersion = candidates[0];
+        ghcupPath = `${ghcupBasePath}/${ghcupVersion}/bin`;
+      } else if (candidates.length == 0) {
+        core.info(
+          `found no ghc candidate for ghcup install at location ${ghcupBasePath}`
+        );
+      } else {
+        core.info(
+          `found more than one ghc candidate for ghcup installation at location ${ghcupBasePath}: ${candidates}`
+        );
+      }
+    } catch (err) {
+      core.info(`failed to read ghcup base directory: ${err}`);
+    }
+  }
+
   const v = aptVersion(tool, version);
   const aptPath = `/opt/${tool}/${v}/bin`;
 
@@ -109,8 +136,9 @@ async function isInstalled(
     if (installedPath) {
       // Make sure that the correct ghc is used, even if ghcup has set a
       // default prior to this action being ran.
-      if (tool === 'ghc' && installedPath === ghcupPath)
-        await exec(await ghcupBin(os), ['set', tool, version]);
+      if (tool === 'ghc' && installedPath === ghcupPath) {
+        await exec(await ghcupBin(os), ['set', tool, ghcupVersion]);
+      }
 
       return success(tool, version, installedPath, os);
     }

@@ -40,6 +40,9 @@ jobs:
           - os: ubuntu-latest
             ghc: "8.2.2"
             cabal: "2.4.0.1"
+          - os: ubuntu-latest
+            ghc: "9.2"
+            cabal: "3.6.0.0"
     steps:
       - uses: actions/checkout@v2
       - uses: ./setup
@@ -58,17 +61,28 @@ jobs:
         run: cabal run
       - name: Show installed versions
         run: |
+          which cabal
           cabal --version
+          which ghc
           ghc --version
       - name: Confirm installed and expected versions match
         shell: bash
         # this check depends on the ghc versions being "exact" in the matrix
-        if: "matrix.ghc != 'latest'"
+        if: "matrix.ghc != 'latest' && matrix.ghc != '9.2'"
         # pure bash startsWith
         run: |
           [[ "${{ matrix.cabal }}" =~ ^([0-9]+\.[0-9]+)\. ]] && ver="${BASH_REMATCH[1]}"
           [[ "$(cabal --numeric-version)" =~ ^"$ver" ]]
           [[ "$(ghc --numeric-version)" == "${{ matrix.ghc }}" ]]
+
+      # for the GHC-9.2 release candidate we only check that the prefix matches
+      - name: Confirm installed and expected versions match
+        shell: bash
+        if: "matrix.ghc == '9.2'"
+        run: |
+          [[ "${{ matrix.cabal }}" =~ ^([0-9]+\.[0-9]+)\. ]] && ver="${BASH_REMATCH[1]}"
+          [[ "$(cabal --numeric-version)" =~ ^"$ver" ]]
+          [[ "$(ghc --numeric-version)" =~ ^"${{ matrix.ghc }}" ]]
 
   test-fallback:
     name: Test GHC Installation Fallbacks - ${{ matrix.os }}
